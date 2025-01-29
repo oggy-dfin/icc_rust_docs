@@ -1,3 +1,19 @@
+type AccountIdentifier = blob;
+type Tokens = record {
+     e8s : nat64;
+};
+
+type IcpTransferResult = variant {
+    "Ok" : null;
+    "Err" : text;
+};
+
+type Icrc1GetBalanceResult = variant {
+    "Ok" : nat;
+    "Err" : text;
+};
+
 service : {
-    "greet": (text) -> (text) query;
+    "icp_transfer": (AccountIdentifier, Tokens) -> (IcpTransferResult);
+    "icrc1_get_balance": (principal) -> (Icrc1GetBalanceResult);
 }

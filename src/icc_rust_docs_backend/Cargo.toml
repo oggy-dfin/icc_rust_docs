@@ -10,5 +10,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 candid = "0.10"
-ic-cdk = "0.16"
-ic-cdk-timers = "0.10" # Feel free to remove this dependency if you don't need timers
+ic-cdk = { git = "https://github.com/dfinity/cdk-rs.git", rev ="d823cb53ceb5574ef511bbcdb0d6b8ef85a3ec2b" }
+ic-ledger-types = "0.14.0"
+icrc-ledger-types = "0.1.8"
