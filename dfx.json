@@ -1,0 +1,17 @@
+{
+  "canisters": {
+    "icc_rust_docs_backend": {
+      "candid": "src/icc_rust_docs_backend/icc_rust_docs_backend.did",
+      "package": "icc_rust_docs_backend",
+      "type": "rust"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

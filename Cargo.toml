@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "src/icc_rust_docs_backend"
+]
+resolver = "2"
