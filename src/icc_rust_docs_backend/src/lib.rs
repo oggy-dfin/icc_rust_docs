@@ -223,12 +223,14 @@ pub async fn get_exchange_rate(base: Asset, quote: Asset) -> Result<(u64, u32), 
         timestamp: None,
     };
 
+    // The XRC charges a fee (in cycles) for its services. The fee is currently 1 billion cycles.
     const XRC_FEES: u128 = 1_000_000_000;
 
+    // We will use a bounded wait call here, since the attached amount of cycles isn't very large.
+    // For larger cycle transfers, an unbounded wait call is safer.
     match Call::bounded_wait(xrc, "get_exchange_rate")
         .with_arg(&args)
-        // The XRC charges a fee (in cycles) for its services. We attach the fee here; it is
-        // deducted from the caller's cycles balance.
+        // We attach the fee here; it is deducted from the caller's cycles balance.
         .with_cycles(XRC_FEES)
         .call::<GetExchangeRateResult>()
         .await
