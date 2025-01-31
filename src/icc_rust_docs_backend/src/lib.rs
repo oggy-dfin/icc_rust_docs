@@ -1,5 +1,4 @@
 use candid::Principal;
-use candid::types::TypeInner::Principal;
 use ic_cdk::call::{CallError, RejectCode};
 use ic_cdk::{api::msg_caller, call::Call};
 use ic_cdk::api::canister_self;
