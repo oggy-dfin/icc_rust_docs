@@ -11,36 +11,56 @@ const OWNER: &str = "gl542-2r2m3-znmmo-cjhz7-p332z-mbe6x-hmrnu-rv37c-mncas-i46u2
 
 
 /// Transfers some ICP to the specified account.
+// Methods that call other canisters can use the async/await syntax to perform calls, and we thus
+// mark them as async.
 #[ic_cdk::update]
 pub async fn icp_transfer(to: AccountIdentifier, amount: Tokens) -> Result<(), String> {
-    if msg_caller != Principal::from_text(OWNER).unwrap() {
-        return Err("Only the owner can call this method".to_string());
+    // msg_caller() returns the identity of the user or canister who initiated the call.
+    // Only allow the owner to transfer.
+    if msg_caller() != Principal::from_text(OWNER).unwrap() {
+        return Err("Only the owner can ask to transfer ICP".to_string());
     }
 
+    // The ID of the ledger canister on the IC mainnet.
     const ICP_LEDGER_CANISTER_ID: &str = "ryjl3-tyaaa-aaaaa-aaaba-cai";
     let icp_ledger = Principal::from_text(ICP_LEDGER_CANISTER_ID).unwrap();
 
     // Unbounded wait calls ensure that the system doesn't give up waiting on the response from the
-    // ledger, and thus never returns a `SysUnknown` error. The response might still be a different
+    // ledger, though the call might still fail.
+    // We will match on the result to show how to properly handle errors.
+    // Unbounded wait calls never return a `SysUnknown` error. The response might still be a different
     // kind of error, either coming from the ledger or from the system (it's possible that the system
     // fails the call before it reaches the ledger)
     match Call::unbounded_wait(icp_ledger, "transfer")
-        .with_arg(TransferArgs {
+        // Sets the call argument, that the recipient will process.
+        .with_arg(&TransferArgs {
+            // A "memo" is an arbitrary blob that has no meaning to the ledger, but can be used by
+            // the sender or receiver to attach additional information to the transaction. We
+            // just use the number 0 here as an example.
             memo: Memo(0),
             to,
             amount,
+            // The ICP ledger canister charges a fee for transfers, which is deducted from the
+            // sender's account. The fee is fixed to 10_000 e8s (0.0001 ICP).
             fee: Tokens::from_e8s(10_000),
+            // The ledger supports subaccounts, but we don't use them in this example.
             from_subaccount: None,
+            // The created_at_time is used for deduplication, which we don't use in this example.
             created_at_time: None,
         })
-
+        // We are ready to execute the call. The type parameter specifies the expected return type
+        // of the call. In this case, we expect the ledger to return a `BlockIndex` if the transfer
+        // was successful, or a `TransferError` if it failed. The result of the entire await is a
+        // nested `Result`, which can contain an error if the call itself failed, or the value
+        // returned by the ledger (which is in itself a `Result`).
+        // Note that calls must be awaited to actually send them.
         .call::<Result<BlockIndex, TransferError>>()
         .await
     {
         // The transfer call succeeded
         Ok(Ok(_i)) => Ok(()),
         // The ledger canister returned an error, for example because our balance was too low.
-        // The transfer didn't happen and we can report an error back to the user.
+        // The transfer didn't happen, and we can report an error back to the user.
         Ok(Err(e)) => Err(format!("Ledger returned an error: {:?}", e)),
         // The Internet Computer rejected our call, for example because the system is overloaded.
         // We know that the transfer didn't happen and return an error to the user.
