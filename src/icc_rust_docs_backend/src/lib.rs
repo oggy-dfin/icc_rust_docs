@@ -3,6 +3,7 @@ use ic_cdk::call::{CallError, RejectCode};
 use ic_cdk::{api::msg_caller, call::Call};
 use ic_cdk::api::canister_self;
 use ic_ledger_types::{AccountIdentifier, BlockIndex, Memo, Tokens, TransferArgs, TransferError};
+use ic_xrc_types::{Asset, GetExchangeRateRequest, GetExchangeRateResult};
 use icrc_ledger_types::icrc1::account::Account;
 use icrc_ledger_types::icrc1::transfer::{NumTokens, TransferArg};
 
@@ -206,5 +207,39 @@ pub async fn icrc1_transfer(ledger: Principal, to: Account, amount: NumTokens) -
                 return Err(format!("Ledger crashed: {:?}", err))
             }
         }
+    }
+}
+
+/// Return the exchange rate between the base and quote assets, where the result consists of the
+/// exchange rate as an integer, and the number of decimals in the exchange rate.
+#[ic_cdk::update]
+pub async fn get_exchange_rate(base: Asset, quote: Asset) -> Result<(u64, u32), String> {
+    const XRC_CANISTER_ID: &str = "uf6dk-hyaaa-aaaaq-qaaaq-cai";
+    let xrc = Principal::from_text(XRC_CANISTER_ID).unwrap();
+
+    let args = GetExchangeRateRequest {
+        base_asset: base,
+        quote_asset: quote,
+        timestamp: None,
+    };
+
+    const XRC_FEES: u128 = 1_000_000_000;
+
+    match Call::bounded_wait(xrc, "get_exchange_rate")
+        .with_arg(&args)
+        // The XRC charges a fee (in cycles) for its services. We attach the fee here; it is
+        // deducted from the caller's cycles balance.
+        .with_cycles(XRC_FEES)
+        .call::<GetExchangeRateResult>()
+        .await
+    {
+        Ok(Ok(rate)) => Ok((rate.rate, rate.metadata.decimals)),
+        // The XRC canister returned an error. This could be because the assets are unknown,
+        // because the XRC canister cannot make outgoing calls, and other reasons. We don't do
+        // any sophisticated error handling here.
+        Ok(Err(e)) => Err(format!("XRC returned an error: {:?}", e)),
+        // For simplicity, we will bail out on any errors. In a real system, we might want to
+        // retry, as we did when obtaining transfer fees.
+        Err(e) => Err(format!("Error calling XRC: {:?}", e)),
     }
 }
