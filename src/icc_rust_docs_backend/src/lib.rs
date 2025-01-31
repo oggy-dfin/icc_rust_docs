@@ -24,6 +24,21 @@ pub async fn icp_transfer(to: AccountIdentifier, amount: Tokens) -> Result<(), S
     // The ID of the ledger canister on the IC mainnet.
     const ICP_LEDGER_CANISTER_ID: &str = "ryjl3-tyaaa-aaaaa-aaaba-cai";
     let icp_ledger = Principal::from_text(ICP_LEDGER_CANISTER_ID).unwrap();
+    let args = TransferArgs {
+        // A "memo" is an arbitrary blob that has no meaning to the ledger, but can be used by
+        // the sender or receiver to attach additional information to the transaction. We
+        // just use the number 0 here as an example.
+        memo: Memo(0),
+        to,
+        amount,
+        // The ICP ledger canister charges a fee for transfers, which is deducted from the
+        // sender's account. The fee is fixed to 10_000 e8s (0.0001 ICP).
+        fee: Tokens::from_e8s(10_000),
+        // The ledger supports subaccounts, but we don't use them in this example.
+        from_subaccount: None,
+        // The created_at_time is used for deduplication, which we don't use in this example.
+        created_at_time: None,
+    };
 
     // Unbounded wait calls ensure that the system doesn't give up waiting on the response from the
     // ledger, though the call might still fail.
@@ -33,21 +48,7 @@ pub async fn icp_transfer(to: AccountIdentifier, amount: Tokens) -> Result<(), S
     // fails the call before it reaches the ledger)
     match Call::unbounded_wait(icp_ledger, "transfer")
         // Sets the call argument, that the recipient will process.
-        .with_arg(&TransferArgs {
-            // A "memo" is an arbitrary blob that has no meaning to the ledger, but can be used by
-            // the sender or receiver to attach additional information to the transaction. We
-            // just use the number 0 here as an example.
-            memo: Memo(0),
-            to,
-            amount,
-            // The ICP ledger canister charges a fee for transfers, which is deducted from the
-            // sender's account. The fee is fixed to 10_000 e8s (0.0001 ICP).
-            fee: Tokens::from_e8s(10_000),
-            // The ledger supports subaccounts, but we don't use them in this example.
-            from_subaccount: None,
-            // The created_at_time is used for deduplication, which we don't use in this example.
-            created_at_time: None,
-        })
+        .with_arg(&args)
         // We are ready to execute the call. The type parameter specifies the expected return type
         // of the call. In this case, we expect the ledger to return a `BlockIndex` if the transfer
         // was successful, or a `TransferError` if it failed. The result of the entire await is a
@@ -106,7 +107,9 @@ pub async fn icrc1_get_fee(ledger: Principal) -> Result<NumTokens, String> {
                 {
                     continue;
                 } else {
-                    // Other rejection types are not retryable.
+                    // Other rejection types are not retryable. They could happen, for example, if
+                    // the target canister explicitly rejects the call (for example, because it is
+                    // stopped), if it gets deleted, or if a fatal system error occurs.
                     return Err(format!(
                         "Irrecoverable error: {:?}",
                         rejection
@@ -129,24 +132,31 @@ pub async fn icrc1_get_fee(ledger: Principal) -> Result<NumTokens, String> {
     }
 }
 
+/// Transfer the tokens on the specified ledger
 #[ic_cdk::update]
 pub async fn icrc1_transfer(ledger: Principal, to: Account, amount: NumTokens) -> Result<(), String> {
     if msg_caller() != Principal::from_text(OWNER).unwrap() {
         return Err("Only the owner can call this method".to_string());
     }
 
-    let fee: NumTokens = Call::bounded_wait(canister_self, "icrc1_get_fee")
+    // In the first step, obtain the fee. The canister can call itself just like it can call any
+    // other canister.
+    let fee: NumTokens = Call::bounded_wait(canister_self(), "icrc1_get_fee")
         .call()
         .await
-        // For simplicity, we won't retry here, but you might want to do so in a real application
+        // Since `icrc1_get_fee` already retries internally, just pass the error to the user
+        // if it fails.
         .map_err(|e| format!("Error obtaining the fee from the ledger canister: {:?}", e))?;
+    // Note that the remainder of this method executes in a separate callback function. While this
+    // doesn't matter for this example, in more complex cases it could expose your canister to
+    // reentrancy issues.
 
     let arg = TransferArg {
         from_subaccount: None,
         to,
-        fee: None,
+        fee: Some(fee),
         // Setting the created time ensures that the ledger performs deduplication of transactions,
-        // such that they can be safely retried
+        // such that they can be safely retried. This is very useful for bounded wait calls.
         created_at_time: Some(ic_cdk::api::time()),
         memo: None,
         amount,
@@ -154,6 +164,9 @@ pub async fn icrc1_transfer(ledger: Principal, to: Account, amount: NumTokens) -
 
     loop {
         match Call::bounded_wait(ledger, "icrc1_transfer")
+            // By default, bounded wait calls time out after 10 seconds. You can change this
+            // timeout, though the system may impose a maximum timeout.
+            .change_timeout(30)
             .with_arg(&arg)
             .call::<Result<BlockIndex, TransferError>>()
             .await {
@@ -162,19 +175,24 @@ pub async fn icrc1_transfer(ledger: Principal, to: Account, amount: NumTokens) -
             // happen, for example because our balance was too low, but it could also happen in the
             // case where we were retrying for too long and the `created_at_time` was too old.
             // In the later case, the transaction may or may not have happened. We could do more
-            // sophisticated error handling here, for example by querying the ledger, but for
-            // simplicity we'll just return the error to the caller.
+            // fine-grained (differentiating between different TransferError types) and
+            // sophisticated error handling here, for example by querying the ledger to find out
+            // whether the transaction occurred, but for simplicity we'll just return the error to
+            // the caller.
             Ok(Err(e)) => Err(format!("Ledger returned an error: {:?}", e)),
-            Err(CallError::CallRejected(rejection)) => {
-                if rejection.is_sync() && rejection.reject_code() == RejectCode::SysTransient {
-                    continue
-                } else {
-                    return Err(format!("Irrecoverable error: {:?}", rejection));
-                }
-            }
             // Since the call is idempotent, we can safely retry if the system returns an error with
             // the ledger canister state being unknown.
             Err(CallError::StateUnknown(SysUnknown(_))) => continue,
+            Err(CallError::CallRejected(rejection)) => {
+                // As before, non-synchronous transient errors are retriable
+                if rejection.is_sync() && rejection.reject_code() == RejectCode::SysTransient {
+                    continue
+                } else {
+                    // Again, we could try to query the ledger, but it's unlikely that it would
+                    // work.
+                    return Err(format!("Irrecoverable error: {:?}", rejection));
+                }
+            }
             // This should not happen if the ledger correctly implements the ICRC-1 standard.
             // We could try to query the ledger to determine the state of the transaction, but
             // if the ledger is incorrect, it is unlikely to work anyway
