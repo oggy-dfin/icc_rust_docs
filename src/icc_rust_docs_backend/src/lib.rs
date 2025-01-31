@@ -9,7 +9,6 @@ use icrc_ledger_types::icrc1::transfer::{NumTokens, TransferArg};
 // Hard-coded owner principal for illustration purposes
 const OWNER: &str = "gl542-2r2m3-znmmo-cjhz7-p332z-mbe6x-hmrnu-rv37c-mncas-i46u2-sqe";
 
-const ICP_LEDGER_CANISTER_ID: &str = "ryjl3-tyaaa-aaaaa-aaaba-cai";
 
 /// Transfers some ICP to the specified account.
 #[ic_cdk::update]
@@ -18,6 +17,7 @@ pub async fn icp_transfer(to: AccountIdentifier, amount: Tokens) -> Result<(), S
         return Err("Only the owner can call this method".to_string());
     }
 
+    const ICP_LEDGER_CANISTER_ID: &str = "ryjl3-tyaaa-aaaaa-aaaba-cai";
     let icp_ledger = Principal::from_text(ICP_LEDGER_CANISTER_ID).unwrap();
 
     // Unbounded wait calls ensure that the system doesn't give up waiting on the response from the
