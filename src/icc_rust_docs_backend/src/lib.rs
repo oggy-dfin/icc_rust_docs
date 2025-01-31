@@ -78,49 +78,53 @@ pub async fn icp_transfer(to: AccountIdentifier, amount: Tokens) -> Result<(), S
     }
 }
 
+/// Obtain the fee that the ledger canister charges for a transfer.
 #[ic_cdk::update]
 pub async fn icrc1_get_fee(ledger: Principal) -> Result<NumTokens, String> {
+    // canister_self() returns the principal (identifier) of the current canister. In addition to
+    // the owner, we'll also allow the canister to call itself, as we will use this later to perform
+    // transfers.
     if msg_caller() != Principal::from_text(OWNER).unwrap() && msg_caller() != canister_self()  {
         return Err("Only the owner can call this method".to_string());
     }
 
-    // In this example we'll use more sophisticated error handling: retrying the call if possible
+    // In this example we'll use more sophisticated error handling: retrying the call if possible.
     loop {
-        let res = Call::bounded_wait(ledger, "icrc1_fee")
-            .with_arg(Account {
-                owner: ic_cdk::api::canister_self(),
-                subaccount: None,
-            })
+        match Call::bounded_wait(ledger, "icrc1_fee")
             .call()
-            .await;
-        match res {
-            Ok(balance) => return Ok(balance),
+            .await
+        {
+            Ok(fee) => return Ok(fee),
+            // The system rejected our call
             Err(CallError::CallRejected(rejection)) => {
-                // Determine whether it makes sense to retry
-                if
-                // Calls that fail with a non-synchronous transient error are always safe to retry
-                rejection.is_sync() && rejection.reject_code() == RejectCode::SysTransient
+                // Determine whether it makes sense to retry. Calls that fail with a non-synchronous
+                // transient error are retryable. For a production system, one might want to limit the
+                // number of retries to avoid spinning in a retry loop forever in some way.
+                // We could use a fixed number of attempts, a timeout, or just check that the caller
+                // isn't stopping.
+                if rejection.is_sync() && rejection.reject_code() == RejectCode::SysTransient
                 {
                     continue;
                 } else {
+                    // Other rejection types are not retryable.
                     return Err(format!(
                         "Irrecoverable error: {:?}",
                         rejection
                     ));
                 }
             }
-            // Since getting the fee doesn't change the ledger state we can simply retry if the system
-            // returns an error with the ledger canister state being unknown
+            // Since getting the fee doesn't change the ledger state we can simply retry if the
+            // system returns a `SysUnknown` error with the ledger canister state being unknown.
+            // Again, we omit limiting the number of retries for simplicity.
             Err(CallError::StateUnknown(SysUnknown(_))) => continue,
-            // We don't expect Candid decoding to fail, as we assume that the ledger's return value
-            // is stable
-            Err(CallError::StateUknown(CandidDecodeFailed(msg))) => {
-                unreachable!("Unable to decode the balance: {}", msg)
-            }
-            // Again, we assume that the ledger is stable and doesn't crash
-            Err(CallError::StateUknown(CanisterError(err))) => {
-                unreachable!("Ledger crashed: {:?}", err)
-            }
+            // Candid decoding shouldn't fail with a correctly implemented ledger. However, since
+            // we are calling an arbitrary ledger, we don't know if it's correctly implemented.
+            // Return an error to the user.
+            Err(CallError::StateUknown(CandidDecodeFailed(msg))) =>
+                return Err(format!("Unable to decode the fee: {}", msg)),
+            // The ledger crashed while processing our request; report an error to the user.
+            Err(CallError::StateUknown(CanisterError(err))) =>
+                return Err(format!("Ledger crashed: {:?}", err))
         }
     }
 }
