@@ -69,14 +69,14 @@ pub async fn icp_transfer(to: AccountIdentifier, amount: Tokens) -> Result<(), S
         Err(CallError::CallRejected(_)) => Err(format!("Error calling ledger canister: {:?}", e)),
         // An error might happen because the response could not be decoded. We mark this as
         // unreachable here because we assume that the ledger's response type is known and stable.
-        Err(CallError::StateUnknown(CandidDecodeFailed(msg))) => unreachable!("Decoding failed: {}", msg),
+        Err(CallError::StateUnknown(StateUnknown::CandidDecodeFailed(msg))) => unreachable!("Decoding failed: {}", msg),
         // The ledger crashed while processing our request. We don't know if the transfer happened.
         // Here, we assume that the ICP ledger is sufficiently well tested that it doesn't crash.
         // For other canisters, more sophisticated error handling might be necessary (for example,
         // they may fail because of a bug or running out of cycles to perform some operations).
-        Err(CallError::StateUnknown(CanisterError(err))) => unreachable!("Ledger crashed: {:?}", err),
+        Err(CallError::StateUnknown(StateUnknown::CanisterError(err))) => unreachable!("Ledger crashed: {:?}", err),
         // This case is unreachable when using unbounded wait calls.
-        Err(CallError::StateUnknown(SysUnknown(_))) => unreachable!("SysUnknown errors cannot happen when using"),
+        Err(CallError::StateUnknown(StateUnknown::SysUnknown(_))) => unreachable!("SysUnknown errors cannot happen when using"),
     }
 }
 
@@ -120,14 +120,14 @@ pub async fn icrc1_get_fee(ledger: Principal) -> Result<NumTokens, String> {
             // Since getting the fee doesn't change the ledger state we can simply retry if the
             // system returns a `SysUnknown` error with the ledger canister state being unknown.
             // Again, we omit limiting the number of retries for simplicity.
-            Err(CallError::StateUnknown(SysUnknown(_))) => continue,
+            Err(CallError::StateUnknown(StateUnknown::SysUnknown(_))) => continue,
             // Candid decoding shouldn't fail with a correctly implemented ledger. However, since
             // we are calling an arbitrary ledger, we don't know if it's correctly implemented.
             // Return an error to the user.
-            Err(CallError::StateUknown(CandidDecodeFailed(msg))) =>
+            Err(CallError::StateUknown(StateUnknown::CandidDecodeFailed(msg))) =>
                 return Err(format!("Unable to decode the fee: {}", msg)),
             // The ledger crashed while processing our request; report an error to the user.
-            Err(CallError::StateUknown(CanisterError(err))) =>
+            Err(CallError::StateUnknown(StateUnknown::CanisterError(err))) =>
                 return Err(format!("Ledger crashed: {:?}", err))
         }
     }
@@ -183,7 +183,7 @@ pub async fn icrc1_transfer(ledger: Principal, to: Account, amount: NumTokens) -
             Ok(Err(e)) => Err(format!("Ledger returned an error: {:?}", e)),
             // Since the call is idempotent, we can safely retry if the system returns an error with
             // the ledger canister state being unknown.
-            Err(CallError::StateUnknown(SysUnknown(_))) => continue,
+            Err(CallError::StateUnknown(StateUnknown::SysUnknown(_))) => continue,
             Err(CallError::CallRejected(rejection)) => {
                 // As before, non-synchronous transient errors are retriable
                 if rejection.is_sync() && rejection.reject_code() == RejectCode::SysTransient {
@@ -197,13 +197,13 @@ pub async fn icrc1_transfer(ledger: Principal, to: Account, amount: NumTokens) -
             // This should not happen if the ledger correctly implements the ICRC-1 standard.
             // We could try to query the ledger to determine the state of the transaction, but
             // if the ledger is incorrect, it is unlikely to work anyway
-            Err(CallError::StateUnknown(CandidDecodeFailed(msg))) => {
+            Err(CallError::StateUnknown(StateUnknown::CandidDecodeFailed(msg))) => {
                 return Err(format!("Unable to decode the ledger response: {}", msg))
             }
             // This should not happen if the ledger is correct. Same as for Candid decoding, we could
             // try to query the ledger, but if the ledger is incorrect, it is unlikely to work, so
             // we just report an error to the user
-            Err(CallError::StateUnknown(CanisterError(err))) => {
+            Err(CallError::StateUnknown(StateUnknown::CanisterError(err))) => {
                 return Err(format!("Ledger crashed: {:?}", err))
             }
         }
