@@ -67,14 +67,14 @@ pub async fn icp_transfer(to: AccountIdentifier, amount: Tokens) -> Result<(), S
         // The Internet Computer rejected our call, for example because the system is overloaded.
         // We know that the transfer didn't happen and return an error to the user.
         Err(CallError::CallRejected(_)) => Err(format!("Error calling ledger canister: {:?}", e)),
-        // An error might happen because the response could not be decoded. We mark this as
-        // unreachable here because we assume that the ledger's response type is known and stable.
-        Err(CallError::StateUnknown(StateUnknown::CandidDecodeFailed(msg))) => unreachable!("Decoding failed: {}", msg),
+        // An error might happen because the response could not be decoded. We panic
+        // here because we assume that the ledger's response type is known and stable.
+        Err(CallError::StateUnknown(StateUnknown::CandidDecodeFailed(msg))) => panic!("Decoding failed: {}", msg),
         // The ledger crashed while processing our request. We don't know if the transfer happened.
         // Here, we assume that the ICP ledger is sufficiently well tested that it doesn't crash.
         // For other canisters, more sophisticated error handling might be necessary (for example,
         // they may fail because of a bug or running out of cycles to perform some operations).
-        Err(CallError::StateUnknown(StateUnknown::CanisterError(err))) => unreachable!("Ledger crashed: {:?}", err),
+        Err(CallError::StateUnknown(StateUnknown::CanisterError(err))) => panic!("Ledger crashed: {:?}", err),
         // This case is unreachable when using unbounded wait calls.
         Err(CallError::StateUnknown(StateUnknown::SysUnknown(_))) => unreachable!("SysUnknown errors cannot happen when using"),
     }
