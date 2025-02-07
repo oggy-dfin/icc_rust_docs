@@ -11,7 +11,7 @@
       "type": "rust"
     },
     "new_caller": {
-      "candid": "src/new_caller/caller.did",
+      "candid": "src/caller/caller.did",
       "package": "new_caller",
       "type": "rust"
     }

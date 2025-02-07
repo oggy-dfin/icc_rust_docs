@@ -1,9 +1,8 @@
 type StubbornSetResult = variant {
-    "Ok" : null;
+    "Ok" : ();
     "Err" : text;
 };
-
 service : {
-    "increment_twice": (principal) -> (nat, nat);
+    "increment_twice": () -> (nat, nat);
     "stubborn_set": (nat) -> (StubbornSetResult);
 }

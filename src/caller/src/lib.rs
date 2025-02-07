@@ -32,18 +32,18 @@ pub async fn increment_twice(counter: Principal) -> (Nat, Nat) {
         .expect("An error happened during the call. Bail out in this simple example");
 
     // Following the exact same pattern, we can increment the counter.
-    let _ = Call::new(counter, "increment")
+    let _ = Call::unbounded_wait(counter, "increment")
         .call::<()>()
         .await
         .expect("Error in the first increment. Bail out");
 
     // An alternative pattern to turbofish is to specify the type of the variable being assigned.
-    let _: () = Call::new(counter, "increment")
+    let _: () = Call::unbounded_wait(counter, "increment")
         .call()
         .await
         .expect("Failed in the second increment. Bail out");
 
-    let end: Nat = Call::new(counter, "get")
+    let end: Nat = Call::unbounded_wait(counter, "get")
         .call()
         .await
         .expect("Failed to get the final value. Bail out");
@@ -97,6 +97,7 @@ pub async fn stubborn_set(counter: Principal, value: Nat) -> Result<(), String> 
                     CallError::CallRejected(_) =>
                         return Err(format!("Failed to get the value and cannot retry: {:?}", e)),
                     // In the `OutcomeUnknown` case, we don't know whether the call was executed.
+                    // The counter may be set to the value we provided, or it may not.
                     CallError::OutcomeUnknown(e) => match e {
                         // The first case is that the callee returned a result, but the
                         // deserialization of the result failed because the result wasn't of the
