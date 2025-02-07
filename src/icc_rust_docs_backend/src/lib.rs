@@ -161,7 +161,9 @@ pub async fn icrc1_transfer(ledger: Principal, to: Account, amount: NumTokens) -
             // example, you can query the ledger to find out whether the transaction occurred.
             Ok(Err(e)) => Err(format!("Ledger returned an error: {:?}", e)),
             // Since the call is idempotent, we can safely retry if the system returns an error with
-            // the ledger canister state being unknown.
+            // the ledger canister state being unknown. For production, you likely need to limit the
+            // number of retries in some way, at the very least to make sure that you don't prevent
+            // your canister from stopping because it's constantly retrying this call.
             Err(CallError::StateUnknown(StateUnknown::SysUnknown(_))) => continue,
             Err(CallError::CallRejected(rejection)) => {
                 // Non-synchronous transient errors can be sensibly retried
