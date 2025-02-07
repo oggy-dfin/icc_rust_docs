@@ -13,9 +13,8 @@
         "id": {
           "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai"
         }
-      },
-      "init_arg" : "(variant { Init = record { minting_account = \"ea82a4e420d1c919437a4e1dad929bfa699b870e43f35730eef7a0d482d4d48a\"; initial_values = vec { record { \"2d878bbd9385c00b81fe2b59865c50a23687754ee0c8ffe85dcc888d5b39c783\"; record { e8s = 10_000_000_000 : nat64; }; }; }; send_whitelist = vec {}; transfer_fee = opt record { e8s = 10_000 : nat64; }; token_symbol = opt \"LICP\"; token_name = opt \"Local ICP\"; } })"
-    }
+      }
+   }
   },
   "defaults": {
     "build": {

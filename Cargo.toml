@@ -1,5 +1,4 @@
 [workspace]
-members = [
-    "src/icc_rust_docs_backend"
-]
+members = [ "src/caller", "src/counter",
+"src/new_caller"]
 resolver = "2"

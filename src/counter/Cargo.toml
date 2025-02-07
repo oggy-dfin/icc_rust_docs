@@ -1,5 +1,5 @@
 [package]
-name = "icc_rust_docs_backend"
+name = "counter"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,6 +9,4 @@ crate-type = ["cdylib"]
 [dependencies]
 candid = "0.10"
 ic-cdk = { git = "https://github.com/dfinity/cdk-rs.git", rev ="d823cb53ceb5574ef511bbcdb0d6b8ef85a3ec2b" }
-ic-ledger-types = "0.14.0"
-icrc-ledger-types = "0.1.8"
-ic-xrc-types = "1.2.0"
+ic-cdk-macros = { git = "https://github.com/dfinity/cdk-rs.git", rev ="d823cb53ceb5574ef511bbcdb0d6b8ef85a3ec2b" }
