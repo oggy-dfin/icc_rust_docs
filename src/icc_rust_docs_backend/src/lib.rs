@@ -83,14 +83,6 @@ pub async fn icp_transfer(to: AccountIdentifier, amount: Tokens) -> Result<(), S
 /// Obtain the fee that the ledger canister charges for a transfer.
 #[ic_cdk::update]
 pub async fn icrc1_get_fee(ledger: Principal) -> Result<NumTokens, String> {
-    // canister_self() returns the principal (identifier) of the current canister. In addition to
-    // the owner, we'll also allow the canister to call itself, as we will use this later to perform
-    // transfers.
-    if msg_caller() != Principal::from_text(OWNER).unwrap() && msg_caller() != canister_self()  {
-        return Err("Only the owner can call this method".to_string());
-    }
-
-    // In this example we'll use more sophisticated error handling: retrying the call if possible.
     loop {
         match Call::bounded_wait(ledger, "icrc1_fee")
             .call()
@@ -136,21 +128,13 @@ pub async fn icrc1_get_fee(ledger: Principal) -> Result<NumTokens, String> {
 /// Transfer the tokens on the specified ledger
 #[ic_cdk::update]
 pub async fn icrc1_transfer(ledger: Principal, to: Account, amount: NumTokens) -> Result<(), String> {
-    if msg_caller() != Principal::from_text(OWNER).unwrap() {
-        return Err("Only the owner can call this method".to_string());
-    }
-
-    // In the first step, obtain the fee. The canister can call itself just like it can call any
-    // other canister.
+    // In the first step, obtain the fee. Use the method above to handle retries.
     let fee: NumTokens = Call::bounded_wait(canister_self(), "icrc1_get_fee")
         .call()
         .await
         // Since `icrc1_get_fee` already retries internally, just pass the error to the user
         // if it fails.
         .map_err(|e| format!("Error obtaining the fee from the ledger canister: {:?}", e))?;
-    // Note that the remainder of this method executes in a separate callback function. While this
-    // doesn't matter for this example, in more complex cases it could expose your canister to
-    // reentrancy issues.
 
     let arg = TransferArg {
         from_subaccount: None,
@@ -165,9 +149,6 @@ pub async fn icrc1_transfer(ledger: Principal, to: Account, amount: NumTokens) -
 
     loop {
         match Call::bounded_wait(ledger, "icrc1_transfer")
-            // By default, bounded wait calls time out after 10 seconds. You can change this
-            // timeout, though the system may impose a maximum timeout.
-            .change_timeout(30)
             .with_arg(&arg)
             .call::<Result<BlockIndex, TransferError>>()
             .await {
@@ -175,17 +156,15 @@ pub async fn icrc1_transfer(ledger: Principal, to: Account, amount: NumTokens) -
             // The ledger canister returned an error. This could be because the transaction didn't
             // happen, for example because our balance was too low, but it could also happen in the
             // case where we were retrying for too long and the `created_at_time` was too old.
-            // In the later case, the transaction may or may not have happened. We could do more
-            // fine-grained (differentiating between different TransferError types) and
-            // sophisticated error handling here, for example by querying the ledger to find out
-            // whether the transaction occurred, but for simplicity we'll just return the error to
-            // the caller.
+            // In the later case, the transaction may or may not have happened. See the TransferError
+            // documentation to do more fine-grained  and sophisticated error handling here. For
+            // example, you can query the ledger to find out whether the transaction occurred.
             Ok(Err(e)) => Err(format!("Ledger returned an error: {:?}", e)),
             // Since the call is idempotent, we can safely retry if the system returns an error with
             // the ledger canister state being unknown.
             Err(CallError::StateUnknown(StateUnknown::SysUnknown(_))) => continue,
             Err(CallError::CallRejected(rejection)) => {
-                // As before, non-synchronous transient errors are retriable
+                // Non-synchronous transient errors can be sensibly retried
                 if rejection.is_sync() && rejection.reject_code() == RejectCode::SysTransient {
                     continue
                 } else {
