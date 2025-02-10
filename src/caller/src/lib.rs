@@ -53,7 +53,7 @@ pub async fn set_then_get(counter: Principal, new_value: Nat) -> Nat {
 
     // It looks like we should be able to assert:
     // assert!(current_value == new_value);
-    // But this is *NOT* guaranteed to hold!
+    // But as we will explain, this is *NOT* guaranteed to hold!
     current_value
 }
 
