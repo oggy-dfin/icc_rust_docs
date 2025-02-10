@@ -3,7 +3,13 @@ type StubbornSetResult = variant {
     "Err" : text;
 };
 
+type SignMessageResult = variant {
+    "Ok" : text;
+    "Err" : text;
+};
+
 service : {
     "increment_twice": (principal) -> (nat, nat);
     "stubborn_set": (nat) -> (StubbornSetResult);
+    "sign_message": (text)  -> (SignMessageResult);
 }

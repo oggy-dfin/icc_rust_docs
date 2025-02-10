@@ -1,7 +1,10 @@
 use candid::{Nat, Principal};
+use ic_cdk::api::management_canister::ecdsa::SignWithEcdsaResponse;
 use ic_cdk::call::{Call, CallError};
 use ic_cdk::api::time;
+use ic_cdk::management_canister::{SignWithEcdsaArgs, EcdsaKeyId, EcdsaCurve};
 use ic_cdk_macros::update;
+use sha2::{Sha256, Digest};
 
 // When calling other canisters:
 // 1. The simplest is to mark your function as `update`. Then you can always call any public
@@ -52,4 +55,26 @@ pub async fn increment_twice(counter: Principal) -> (Nat, Nat) {
     // assert!(final == initial + 2);
     // But this is *NOT* guaranteed to hold!
     (initial, end)
+}
+
+#[update]
+pub async fn sign_message(message: String) -> Result<String, String> {
+    let message_hash = Sha256::digest(&message).to_vec();
+
+    let request = SignWithEcdsaArgs {
+        message_hash,
+        derivation_path: vec![],
+        key_id: EcdsaKeyId {
+            curve: EcdsaCurve::Secp256k1,
+            name: "dfx_test_key".to_string(),
+        },
+    };
+
+    match Call::new(Principal::management_canister(), "sign_with_ecdsa")
+        .with_arg(&request)
+        .with_cycles(10_000_000_000)
+        .call::<SignWithEcdsaResponse>().await {
+        Ok(signature ) => Ok(hex::encode(signature.signature)),
+        Err(err) => Err(format!("Error signing message: {:?}", err)),
+    }
 }

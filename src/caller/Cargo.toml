@@ -10,3 +10,5 @@ crate-type = ["cdylib"]
 candid = "0.10"
 ic-cdk = { git = "https://github.com/dfinity/cdk-rs.git", rev ="d823cb53ceb5574ef511bbcdb0d6b8ef85a3ec2b", package = "ic-cdk" }
 ic-cdk-macros = { git = "https://github.com/dfinity/cdk-rs.git", rev ="d823cb53ceb5574ef511bbcdb0d6b8ef85a3ec2b", package = "ic-cdk-macros" }
+sha2 = "0.10"
+hex = "0.4"
