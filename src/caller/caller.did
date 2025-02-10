@@ -9,7 +9,8 @@ type SignMessageResult = variant {
 };
 
 service : {
-    "increment_twice": (principal) -> (nat, nat);
+    "call_get_and_set": (nat) -> (nat);
+    "set_then_get": (nat) -> (nat);
     "stubborn_set": (nat) -> (StubbornSetResult);
     "sign_message": (text)  -> (SignMessageResult);
 }
