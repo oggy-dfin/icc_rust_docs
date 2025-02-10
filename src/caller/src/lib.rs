@@ -154,7 +154,13 @@ pub async fn sign_message(message: String) -> Result<String, String> {
         .with_cycles(10_000_000_000)
         .call::<SignWithEcdsaResponse>().await {
         Ok(signature ) => Ok(hex::encode(signature.signature)),
-        // For this example, just return the error as a string.
-        Err(err) => Err(format!("Error signing message: {:?}", err)),
+        Err(e) => match e {
+            // A SysUnknown error means that we won't get any cycles refunded, even
+            // if the call didn't make it to the callee. But we don't care here since
+            // we only attached a small amount of cycles.
+            CallError::OutComeUnknown(OutcomeUnknown::SysUnknown(err)) =>
+                Err(format!("Got a SysUnknown error while signing message: {:?}; cycles are not refunded", err)),
+            _ => Err(format!("Error signing message: {:?}", e)),
+        }
     }
 }
