@@ -140,9 +140,12 @@ pub async fn sign_message(message: String) -> Result<String, String> {
 
     let request = SignWithEcdsaArgs {
         message_hash,
+        // We don't use the fancier signing features here
         derivation_path: vec![],
         key_id: EcdsaKeyId {
             curve: EcdsaCurve::Secp256k1,
+            // This is the key name used for local testing; different
+            // key names are needed for the mainnet
             name: "dfx_test_key".to_string(),
         },
     };
@@ -151,6 +154,7 @@ pub async fn sign_message(message: String) -> Result<String, String> {
     // fairly low, and losing the attached cycles isn't catastrophic.
     match Call::bounded_wait(Principal::management_canister(), "sign_with_ecdsa")
         .with_arg(&request)
+        // Signing with a test key requires 10 billion cycles
         .with_cycles(10_000_000_000)
         .call::<SignWithEcdsaResponse>().await {
         Ok(signature ) => Ok(hex::encode(signature.signature)),
